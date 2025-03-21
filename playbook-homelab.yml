@@ -1,0 +1,13 @@
+# Bootstrap VM playbook
+---
+- name: Setup environments for node
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Setup docker for node
+  hosts: all
+  become: true
+  roles:
+    - docker

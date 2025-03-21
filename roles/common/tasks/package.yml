@@ -1,0 +1,5 @@
+---
+- name: Ensure useful package are installed
+  ansible.builtin.package:
+    name: "{{ common_packages }}"
+    state: "{{ common_packages_state }}"
