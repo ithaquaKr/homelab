@@ -14,3 +14,4 @@ troubleshooting/
 molecule/*/*.tar.gz
 discovery/*.yml
 *.env
+*.vault_pass
