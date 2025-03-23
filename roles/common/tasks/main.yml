@@ -5,7 +5,7 @@
     - common
     - network
 
-- name: Ensuring user {{ app_user }} exists
+- name: Ensuring user exists. User {{ app_user }}
   ansible.builtin.import_tasks: user.yml
   tags:
     - common

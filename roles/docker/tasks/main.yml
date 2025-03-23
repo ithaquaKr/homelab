@@ -17,8 +17,7 @@
     update_cache: true
   when: docker_add_repo | bool
 
-- # See https://docs.docker.com/engine/install/debian/#uninstall-old-versions
-  name: Ensure old versions of Docker are not installed.
+- name: Ensure old versions of Docker are not installed.
   ansible.builtin.package:
     name: "{{ docker_obsolete_packages }}"
     state: absent
@@ -54,7 +53,7 @@
     state: present
   when: add_repository_key is failed and docker_add_repo | bool
 
-- name: Add Docker apt key (alternative for older systems without SNI).
+- name: Add Docker apt key (alternative for older systems without SNI). # noqa no-changed-when yaml[comments] command-instead-of-module risky-shell-pipe
   ansible.builtin.shell: >
     curl -sSL {{ docker_apt_gpg_key }} | apt-key add -
   when: add_repository_key is failed and docker_add_repo | bool
@@ -135,7 +134,7 @@
   changed_when: false
   failed_when: false
 
-- ansible.builtin.set_fact:
+- ansible.builtin.set_fact: # noqa name[missing] yaml[comments]
     docker_compose_current_version: "{{ docker_compose_vsn.stdout | regex_search('(\\d+(\\.\\d+)+)') }}"
   when: >
     docker_compose_vsn.stdout is defined
