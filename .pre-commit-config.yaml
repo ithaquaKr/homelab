@@ -1,0 +1,17 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.32.0
+    hooks:
+      - id: yamllint
+        name: yamllint
+        entry: yamllint -f colored .
+        language: python
+        types: [file, yaml]
+# TODO: Add ansible-lint on pre-commit
