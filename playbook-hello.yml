@@ -1,3 +1,4 @@
+---
 - name: Play hello world
   hosts: all
   become: true

@@ -14,4 +14,9 @@ repos:
         entry: yamllint -f colored .
         language: python
         types: [file, yaml]
-# TODO: Add ansible-lint on pre-commit
+
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v25.1.3
+    hooks:
+      - id: ansible-lint
+        name: ansible-lint
