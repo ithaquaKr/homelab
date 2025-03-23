@@ -1,4 +1,4 @@
-# Bootstrap VM playbook
+# Main playbook for bootstrap VM
 ---
 - name: Setup environments for node
   hosts: all
@@ -11,3 +11,9 @@
   become: true
   roles:
     - docker
+
+- name: Setup firewall for node
+  hosts: all
+  become: true
+  roles:
+    - ufw

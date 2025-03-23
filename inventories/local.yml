@@ -3,11 +3,24 @@ all:
   vars:
     ansible_user: itha_admin
     ansible_ssh_private_key_file: ~/.orbstack/ssh/id_ed25519
+    ansible_become_method: su
+    ansible_become_password: "Hali201"
     app_user: itha_app
     app_user_password: ""
     app_base_dir: /home/itha_app
     hostname: "vm1"
-
+    # Firewall configure
+    ufw_default_incoming_policy: deny
+    ufw_default_outgoing_policy: allow
+    ufw_rules:
+      - rule: allow
+        to_port: 22
+        protocol: tcp
+        comment: "Allow incoming connection on standard SSH port"
+      - rule: allow
+        to_port: 5432
+        protocol: tcp
+        comment: "Allow incoming connection to postgreSQL database"
   hosts:
     vm1:
       ansible_host: vm1@orb

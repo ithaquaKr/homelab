@@ -1,0 +1,7 @@
+# Playbook for configure firewall
+---
+- name: Setup firewall for node
+  hosts: all
+  become: true
+  roles:
+    - ufw
