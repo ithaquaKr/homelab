@@ -20,7 +20,8 @@ all:
       3562
     app_base_dir: /home/ithapp
     hostname: "ithadev"
-
+  docker_users:
+    - "ithapp"
   hosts:
     ithadev:
       ansible_host: 103.171.90.179
