@@ -1,3 +1,4 @@
+# Playbook to test inventory
 ---
 - name: Play hello world
   hosts: all

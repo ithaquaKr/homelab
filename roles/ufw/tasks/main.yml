@@ -1,0 +1,95 @@
+---
+- name: Facts | set
+  ansible.builtin.set_fact:
+    kernel_version: "{{ ansible_kernel | regex_search('^([0-9]+\\.[0-9]+\\.[0-9]+)') }}"
+
+# see https://askubuntu.com/a/1064533/261010, https://www.spinics.net/lists/netfilter-devel/msg55682.html
+- name: Fix dropped ssh sessions
+  when:
+    - kernel_version is version('4.14', '>=')
+    - kernel_version is version('5', '<')
+  block:
+    - name: Check if conntrack exists
+      ansible.builtin.stat:
+        path: /proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal
+      register: _nf_conntrack_tcp_be_liberal
+
+    - name: Fix dropped ssh sessions | configure kernel
+      ansible.posix.sysctl:
+        name: net.netfilter.nf_conntrack_tcp_be_liberal
+        value: "1"
+        state: present
+        sysctl_set: true
+        reload: true
+      when: _nf_conntrack_tcp_be_liberal.stat.exists
+
+- name: Install | dependencies
+  ansible.builtin.apt:
+    name: "{{ ufw_dependencies }}"
+    state: "{{ apt_install_state | default('latest') }}"
+    update_cache: true
+    cache_valid_time: "{{ apt_update_cache_valid_time | default(3600) }}"
+
+- name: Configure | create (local facts) directory
+  ansible.builtin.file:
+    path: /etc/ansible/facts.d/
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Configure | update configuration file(s)
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - src: etc/default/ufw.j2
+      dest: /etc/default/ufw
+    - src: etc/ansible/facts.d/ufw.fact.j2
+      dest: /etc/ansible/facts.d/ufw.fact
+  register: configuration
+
+- name: Configure | reset
+  community.general.ufw:
+    state: reset
+  when: configuration is changed
+
+- name: Configure | default (incoming) policy
+  community.general.ufw:
+    policy: "{{ ufw_default_incoming_policy }}"
+    direction: incoming
+  notify: Reload ufw
+
+- name: Configure | default (outgoing) policy
+  community.general.ufw:
+    policy: "{{ ufw_default_outgoing_policy }}"
+    direction: outgoing
+  notify: Reload ufw
+
+- name: Configure | rules
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    interface: "{{ item.interface | default('') }}"
+    direction: "{{ item.direction | default('in') }}"
+    from_ip: "{{ item.from_ip | default('any') }}"
+    to_ip: "{{ item.to_ip | default('any') }}"
+    from_port: "{{ item.from_port | default('') }}"
+    to_port: "{{ item.to_port | default('') }}"
+    protocol: "{{ item.protocol | default('any') }}"
+    route: "{{ item.route | default(omit) }}"
+    log: "{{ item.log | default(false) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  with_items: "{{ ufw_rules }}"
+  notify: Reload ufw
+
+- name: Configure | logging
+  community.general.ufw:
+    logging: "{{ ufw_logging }}"
+  notify: Reload ufw
+
+- name: Start and enable service
+  community.general.ufw:
+    state: enabled
