@@ -29,6 +29,10 @@ all:
         to_port: 22
         protocol: tcp
         comment: "Allow incoming connection on standard SSH port"
+      - rule: allow
+        to_port: 6443
+        protocol: tcp
+        comment: "Allow incoming connection for Kind"
   docker_users:
     - "ithapp"
   hosts:
