@@ -29,10 +29,15 @@ all:
         to_port: 22
         protocol: tcp
         comment: "Allow incoming connection on standard SSH port"
-      - rule: allow
-        to_port: 6443
-        protocol: tcp
-        comment: "Allow incoming connection for Kind"
+      # - rule: allow
+      #   interface: eth0
+      #   direction: in
+      #   to_port: 6443
+      #   comment: "Allow incoming connection on standard Kind"
+    ## Configure NAT
+    ufw_etc_ufw_before_manage: true
+    ufw_etc_ufw_before6_rules: []
+    ufw_etc_ufw_before_rules: []
   docker_users:
     - "ithapp"
   hosts:
