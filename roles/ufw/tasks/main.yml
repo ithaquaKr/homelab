@@ -32,7 +32,7 @@
 
 - name: Configure | create (local facts) directory
   ansible.builtin.file:
-    path: /etc/ansible/facts.d/
+    path: "{{ ufw_etc_ansible_facts_file | dirname }}/"
     state: directory
     owner: root
     group: root
@@ -46,16 +46,16 @@
     group: root
     mode: 0644
   with_items:
-    - src: etc/default/ufw.j2
-      dest: /etc/default/ufw
-    - src: etc/ansible/facts.d/ufw.fact.j2
-      dest: /etc/ansible/facts.d/ufw.fact
-  register: configuration
+    - src: "{{ ufw_etc_default_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_default_file }}"
+    - src: "{{ ufw_etc_ansible_facts_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_ansible_facts_file }}"
+  register: _configuration
 
 - name: Configure | reset
   community.general.ufw:
     state: reset
-  when: configuration is changed
+  when: _configuration is changed
 
 - name: Configure | default (incoming) policy
   community.general.ufw:
@@ -68,6 +68,15 @@
     policy: "{{ ufw_default_outgoing_policy }}"
     direction: outgoing
   notify: Reload ufw
+
+# - name: set sysctl to forward
+#   ansible.posix.sysctl:
+#     name: net.ipv4.ip_forward
+#     value: 1
+#     sysctl_set: yes
+#     state: present
+#     reload: yes
+#   when: enable_ip_forward | bool
 
 - name: Configure | rules
   community.general.ufw:
@@ -83,6 +92,54 @@
     log: "{{ item.log | default(false) }}"
     comment: "{{ item.comment | default(omit) }}"
   with_items: "{{ ufw_rules }}"
+  notify: Reload ufw
+
+- name: Configure | rules | update after file(s)
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0640
+  with_items:
+    - src: "{{ ufw_etc_ufw_after6_rules_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_ufw_after6_rules_file }}"
+    - src: "{{ ufw_etc_ufw_after_rules_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_ufw_after_rules_file }}"
+  when: ufw_etc_ufw_after_manage | bool
+  register: _after_rules
+  notify: Reload ufw
+
+- name: Configure | rules | update before file(s)
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0640
+  with_items:
+    - src: "{{ ufw_etc_ufw_before6_rules_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_ufw_before6_rules_file }}"
+    - src: "{{ ufw_etc_ufw_before_rules_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_ufw_before_rules_file }}"
+  when: ufw_etc_ufw_before_manage | bool
+  register: _before_rules
+  notify: Reload ufw
+
+- name: Configure | rules | update user file(s)
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0640
+  with_items:
+    - src: "{{ ufw_etc_ufw_user6_rules_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_ufw_user6_rules_file }}"
+    - src: "{{ ufw_etc_ufw_user_rules_file.lstrip('/') }}.j2"
+      dest: "{{ ufw_etc_ufw_user_rules_file }}"
+  when: ufw_etc_ufw_user_manage | bool
+  register: _user_rules
   notify: Reload ufw
 
 - name: Configure | logging
