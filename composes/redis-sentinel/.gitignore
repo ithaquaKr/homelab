@@ -1,0 +1,27 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Redis dump files
+*.rdb
+
+# Environment files
+.env.local
+.env.*.local
+.env
+
+# Data directories
+data/*
+# Log directories
+logs/*

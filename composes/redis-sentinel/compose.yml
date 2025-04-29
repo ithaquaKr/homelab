@@ -1,0 +1,85 @@
+version: "3.8"
+
+x-redis-common: &redis-common
+  image: ${REDIS_IMAGE}
+  networks:
+    - redis-net
+  env_file: .env
+
+x-sentinel-common: &sentinel-common
+  image: ${SENTINEL_IMAGE}
+  networks:
+    - redis-net
+  env_file: .env
+
+services:
+  redis-master:
+    <<: *redis-common
+    container_name: redis-master
+    command: /run.sh
+    volumes:
+      - ./config/redis/master.conf:/opt/bitnami/redis/mountd-etc/redis.conf
+      - redis-master-data:/bitnami/redis/data
+      - redis-master-log:/opt/bitnami/redis/logs
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes # TODO: Remove this, add authentication for production environment
+      - REDIS_PORT=${REDIS_PORT}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  redis-replica:
+    <<: *redis-common
+    volumes:
+      - ./config/redis/replica.conf:/opt/bitnami/redis/mountd-etc/redis.conf
+      - redis-replica-data:/data
+      - redis-replica-log:/opt/bitnami/redis/logs
+    command: /run.sh
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    deploy:
+      replicas: ${REDIS_REPLICA_COUNT}
+    ports:
+      - "${REDIS_REPLICA_START_PORT}-${REDIS_REPLICA_END_PORT}:${REDIS_PORT}"
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes # TODO: Remove this, add authentication for production environment
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_MASTER_HOST=${REDIS_MASTER_HOST}
+      - REDIS_MASTER_PORT=${REDIS_PORT}
+
+  sentinel:
+    <<: *sentinel-common
+    volumes:
+      - ./config/sentinel/sentinel.conf:/bitnami/redis-sentinel/sentinel.conf
+      - sentinel-log:/opt/bitnami/redis-sentinel/logs
+    environment:
+      - SENTINEL_PORT=${SENTINEL_PORT}
+      - SENTINEL_QUORUM=${SENTINEL_QUORUM}
+      - REDIS_MASTER_HOST=${REDIS_MASTER_HOST}
+      - REDIS_MASTER_PORT=${REDIS_PORT}
+      - SENTINEL_DOWN_AFTER=${SENTINEL_DOWN_AFTER}
+      - SENTINEL_FAILOVER_TIMEOUT=${SENTINEL_FAILOVER_TIMEOUT}
+      - SENTINEL_PARALLEL_SYNCS=${SENTINEL_PARALLEL_SYNCS}
+    deploy:
+      replicas: ${SENTINEL_COUNT}
+    ports:
+      - "${SENTINEL_START_PORT}-${SENTINEL_END_PORT}:${SENTINEL_PORT}"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+
+networks:
+  redis-net:
+    driver: bridge
+
+volumes:
+  redis-master-data:
+  redis-master-log:
+  redis-replica-data:
+  redis-replica-log:
+  sentinel-log:
