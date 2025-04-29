@@ -1,0 +1,22 @@
+#cloud-config
+users:
+  - name: dev
+    groups: sudo
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    lock_passwd: false
+    passwd: "$6$rounds=4096$randomsalt$hashedpassword" # Replace with an actual hashed password
+    chpasswd:
+      expire: false
+
+ssh_pwauth: true
+
+chpasswd:
+  list: |
+    root:your_root_password
+  expire: false
+
+runcmd:
+  - sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
+  - sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+  - systemctl restart sshd
