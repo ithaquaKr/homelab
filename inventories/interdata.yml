@@ -33,6 +33,18 @@ all:
         to_port: 6443
         protocol: tcp
         comment: "Allow incoming connection for Kind"
+      - rule: allow
+        to_port: 5601
+        protocol: tcp
+        comment: "Allow incoming connection for Kibana"
+      - rule: allow
+        to_port: 9200
+        protocol: tcp
+        comment: "Allow incoming connection for ElasticSearch"
+      - rule: allow
+        to_port: 5678
+        protocol: tcp
+        comment: "Allow incoming connection for N8N"
   docker_users:
     - "ithapp"
   hosts:
