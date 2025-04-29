@@ -1,10 +1,11 @@
 # Homelab
 
-This repository contains all the necessary resources to build and manage your
-own homelab, whether in the cloud or on a physical machine.
+This repository serves as a central place to store all the tools,
+configurations, and resources I use for lab work, testing, and
+experimentation—whether on local machines or in the cloud.
 
-It leverages infrastructure-as-code principles to ensure reproducibility and
-ease of management.
+It follows infrastructure-as-code principles to maintain consistency,
+reproducibility, and ease of management.
 
 ## Usage
 
