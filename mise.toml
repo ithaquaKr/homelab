@@ -1,0 +1,5 @@
+[tools]
+helm = "3.17.3"
+helm-diff = "latest"
+helmfile = "latest"
+python = "3.13.2"
