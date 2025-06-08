@@ -1,0 +1,8 @@
+---
+bases:
+  - ./bases/helmDefaults.yaml
+  - ./bases/environments.yaml.gotmpl
+
+---
+helmfiles:
+  - ./releases/victoria-k8s-stack/helmfile.yaml

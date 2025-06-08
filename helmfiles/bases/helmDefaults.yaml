@@ -1,0 +1,17 @@
+---
+helmDefaults:
+  atomic: true
+  cleanupOnFail: false
+  verify: false
+  wait: false
+  waitForJobs: false
+  timeout: 600
+  recreatePods: false # Do not recreate pods during upgrade when not required
+  force: false
+  historyMax: 10
+  createNamespace: true
+  devel: false
+  reuseValues: false
+  skipDeps: false
+  cascade: background
+  insecureSkipTLSVerify: false

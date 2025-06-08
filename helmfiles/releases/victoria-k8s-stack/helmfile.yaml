@@ -1,0 +1,18 @@
+---
+bases:
+  - ../../bases/helmDefaults.yaml
+  - ../../bases/environments.yaml.gotmpl
+
+---
+repositories:
+  - name: victoriametrics
+    url: https://victoriametrics.github.io/helm-charts/
+
+---
+releases:
+  - name: vm-k8s-stack
+    chart: victoriametrics/victoria-metrics-k8s-stack
+    version: ~0.48.1
+    namespace: victoria
+    values:
+      - ./values.yaml

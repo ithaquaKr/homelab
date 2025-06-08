@@ -7,6 +7,16 @@ experimentation—whether on local machines or in the cloud.
 It follows infrastructure-as-code principles to maintain consistency,
 reproducibility, and ease of management.
 
+## Concept
+
+### Tools
+
+> TBD
+
+### Repository structure
+
+> TBD
+
 ## Usage
 
 Clone this repository to your local machine:
