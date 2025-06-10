@@ -1,5 +1,3 @@
-version: "3.8"
-
 x-redis-common: &redis-common
   image: ${REDIS_IMAGE}
   networks:
@@ -47,7 +45,7 @@ services:
     ports:
       - "${REDIS_REPLICA_START_PORT}-${REDIS_REPLICA_END_PORT}:${REDIS_PORT}"
     environment:
-      - ALLOW_EMPTY_PASSWORD=yes # TODO: Remove this, add authentication for production environment
+      - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_MASTER_HOST=${REDIS_MASTER_HOST}
       - REDIS_MASTER_PORT=${REDIS_PORT}
@@ -61,8 +59,7 @@ services:
       - SENTINEL_PORT=${SENTINEL_PORT}
       - SENTINEL_QUORUM=${SENTINEL_QUORUM}
       - REDIS_MASTER_HOST=${REDIS_MASTER_HOST}
-      - REDIS_MASTER_PORT=${REDIS_PORT}
-      - SENTINEL_DOWN_AFTER=${SENTINEL_DOWN_AFTER}
+      - REDIS_MASTER_PORT=${REDIS_PORT} - SENTINEL_DOWN_AFTER=${SENTINEL_DOWN_AFTER}
       - SENTINEL_FAILOVER_TIMEOUT=${SENTINEL_FAILOVER_TIMEOUT}
       - SENTINEL_PARALLEL_SYNCS=${SENTINEL_PARALLEL_SYNCS}
     deploy:
