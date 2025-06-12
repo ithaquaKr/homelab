@@ -49,4 +49,4 @@ all:
     - "ithapp"
   hosts:
     ithadev:
-      ansible_host: 103.171.90.179
+      ansible_host: 103.173.226.165
