@@ -72,9 +72,9 @@ status:
 	@echo "${YELLOW}Service Status:${NC}"
 	$(DOCKER_COMPOSE) ps
 	@echo "\n${YELLOW}Redis Master Status:${NC}"
-	@$(DOCKER_COMPOSE) exec -T redis-master redis-cli info replication || true
+	@$(DOCKER_COMPOSE) exec -T redis-1 redis-cli -p 6380 info replication || true
 	@echo "\n${YELLOW}Sentinel Status:${NC}"
-	@$(DOCKER_COMPOSE) exec -T sentinel redis-cli -p 26379 sentinel master mymaster || true
+	@$(DOCKER_COMPOSE) exec -T sentinel-1 redis-cli -p 26380 sentinel master mymaster || true
 
 ## Create a backup of Redis data
 backup:
