@@ -1,0 +1,119 @@
+# Enable node exporter
+nodeExporter:
+  enabled: true
+
+# Add additionalLabels for prometheusOperator
+prometheusOperator:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: prometheus-operator
+
+# Configure default rules
+defaultRules:
+  create: true
+  labels:
+    monitor/name: default-rules
+  disabled:
+    Watchdog: true
+
+# Prometheus configure
+prometheus:
+  enabled: true
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: prometheus
+  prometheusSpec:
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    retention: 30d
+    scrapeInterval: 60s
+    serviceMonitorSelector:
+      matchExpressions:
+        - { key: monitor/name, operator: Exists }
+    ruleSelector:
+      matchExpressions:
+        - { key: monitor/name, operator: Exists }
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "standard"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+# Grafana
+grafana:
+  enabled: true
+  adminPassword: admin # need push to vault
+  serviceMonitor:
+    enabled: true
+  persistence:
+    type: pvc
+    enabled: true
+    storageClassName: "standard"
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+  defaultDashboardsTimezone: "browser"
+
+# AlertManager
+alertmanager:
+  enabled: true
+
+# Exporter and Manager
+kube-state-metrics:
+  prometheus:
+    monitor:
+      additionalLabels:
+        monitor/name: kube-state-metrics
+
+prometheus-node-exporter:
+  enabled: true
+  prometheus:
+    monitor:
+      additionalLabels:
+        monitor/name: node-exporter
+
+kubeControllerManager:
+  enabled: true
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: kubeControllerManager
+
+coreDns:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: coreDns
+
+kubeDns:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: kubeDns
+
+kubeEtcd:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: kubeEtcd
+
+kubeScheduler:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: kubeScheduler
+
+kubeProxy:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: kubeProxy
+
+kubelet:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: kubelet
+
+kubeApiServer:
+  serviceMonitor:
+    additionalLabels:
+      monitor/name: kubeApiServer
