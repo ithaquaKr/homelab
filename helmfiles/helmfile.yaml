@@ -6,5 +6,5 @@ bases:
 ---
 helmfiles:
   - ./releases/kube-prom-stack/helmfile.yaml
-#  - ./releases/victoria-k8s-stack/helmfile.yaml
+  - ./releases/victoria-k8s-stack/helmfile.yaml
 

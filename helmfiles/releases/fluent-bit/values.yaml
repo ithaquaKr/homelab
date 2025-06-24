@@ -1,0 +1,26 @@
+---
+image: "elasticsearch"
+imageTag: "8.5.1"
+imagePullPolicy: "IfNotPresent"
+# Permit co-located instances for solitary minikube virtual machines.
+antiAffinity: "soft"
+
+# Shrink default JVM heap.
+esJavaOpts: "-Xmx1g -Xms1g"
+
+# Allocate smaller chunks of memory per pod.
+resources:
+  requests:
+    cpu: "2000m"
+    memory: "2048M"
+  limits:
+    cpu: "2000m"
+    memory: "2048M"
+
+# Request smaller persistent volumes.
+volumeClaimTemplate:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: "cinder-csi"
+  resources:
+    requests:
+      storage: 20G
