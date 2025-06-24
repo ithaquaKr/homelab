@@ -1,0 +1,3 @@
+image: "kibana"
+imageTag: "8.5.1"
+imagePullPolicy: "IfNotPresent"
