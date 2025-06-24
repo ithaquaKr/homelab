@@ -1,0 +1,193 @@
+# Vault global configurations
+global:
+  enabled: true
+  tlsDisable: true
+
+# Vault Injector configurations
+injector:
+  enabled: true
+  replicas: 3
+  port: 8080
+  leaderElector:
+    enabled: true
+  metrics:
+    enabled: true
+  image:
+    repository: "hashicorp/vault-k8s"
+    tag: "1.4.2"
+    pullPolicy: IfNotPresent
+  agentImage:
+    repository: "hashicorp/vault"
+    tag: "1.17.2"
+  agentDefaults:
+    cpuLimit: 500m
+    cpuRequest: 250m
+    memLimit: 128Mi
+    memRequest: 64Mi
+  authPath: auth/kubernetes
+  logLevel: info
+  logFormat: standard
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+  strategy:
+    type: RollingUpdate
+
+# Vault Server configurations
+server:
+  image:
+    repository: "hashicorp/vault"
+    tag: "1.16.1"
+    pullPolicy: IfNotPresent
+  updateStrategyType: OnDelete
+  logLevel: debug
+  logFormat: standard
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+  readinessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+  livenessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+    failureThreshold: 5
+    initialDelaySeconds: 300 # Wait for unseal step before check liveness
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 30
+  dataStorage:
+    size: 10Gi
+    storageClass: cinder-csi
+    accessMode: ReadWriteOnce
+  auditStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: cinder-csi
+    accessMode: ReadWriteOnce
+  standalone:
+    enabled: false
+  # Vault HA configurations
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+        cluster_name = "vault"
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+          telemetry {
+            unauthenticated_metrics_access = "true"
+          }
+        }
+        storage "raft" {
+          path = "/vault/data"
+          tls_skip_verify = "true"
+          retry_join {
+            leader_api_addr = "http://vault-0.vault-internal.vault:8200"
+          }
+          retry_join {
+            leader_api_addr = "http://vault-1.vault-internal.vault:8200"
+          }
+          retry_join {
+            leader_api_addr = "http://vault-2.vault-internal.vault:8200"
+          }
+        }
+        telemetry {
+          prometheus_retention_time = "30s",
+          disable_hostname = true
+        }
+        service_registration "kubernetes" {}
+
+# Vault CSI Provider configurations
+csi:
+  enabled: false
+
+# VaultUI configurations
+ui:
+  enabled: true
+  serviceType: "NodePort"
+  serviceNodePort: 30820
+  externalPort: 8200
+  targetPort: 8200
+
+# Metrics configurations
+serverTelemetry:
+  serviceMonitor:
+    enabled: true
+    selectors:
+      monitor/name: vault
+    interval: 60s
+    scrapeTimeout: 60s
+  prometheusRules:
+    enabled: true
+    selectors:
+      monitor/name: vault
+    rules:
+      - alert: vault_instance_is_down
+        expr: up{job="vault-active"} != 1
+        for: 5m
+        labels:
+          group: v_clouds
+          severity: critical
+        annotations:
+          summary: "Vault instance is down"
+          description: "The Vault instance {{$labels.instance}} has been down for the last 5 minutes"
+          value: "{{ $value }}"
+
+      # Check whether instance is unseal or not
+      - alert: vault_is_sealed
+        expr: vault_core_unsealed == 0
+        for: 5m
+        labels:
+          group: v_clouds
+          severity: critical
+        annotations:
+          summary: "Vault instance is sealed"
+          description: "The Vault instance {{$labels.instance}} has been sealed for the last 5 minutes"
+          value: "{{ $value }}"
+
+      # Check vault cluster leadership establishment
+      - alert: vault_leadership_loss
+        expr: sum(increase(vault_core_leadership_lost_count{job="vault-active"}[1h])) > 5
+        labels:
+          group: v_clouds
+          severity: critical
+        annotations:
+          summary: "A large number of vault leadership losses"
+          description: There have been more than 5 Vault leadership losses in the past 1h
+          value: "{{ $value }}"
+
+      # All runtime threads are blocked until GC completes. If memory usage is high, GC occurs so frequently making vault slow down. Warning if total_gc_pause_ns exceeds 1 seconds/minute, critical if it exceeds 2 seconds/minute.
+      - alert: vault_garbage_collector_pause_time_lasts_too_long
+        expr: rate(vault_runtime_gc_pause_ns_sum[5m]) > 1000000000
+        labels:
+          group: v_clouds
+          severity: major
+        annotations:
+          summary: "Garbage collector pause time  lasts too long"
+          description: "Garbage collector pause time in vault instance {{$labels.instance}} lasts more than 1 seconds/minute"
+          value: "{{ $value }}"
+
+      - alert: vault_garbage_collector_pause_time_lasts_too_long
+        expr: rate(vault_runtime_gc_pause_ns_sum[5m]) > 2000000000
+        labels:
+          group: v_clouds
+          severity: critical
+        annotations:
+          summary: "Garbage collector pause time lasts too long"
+          description: "Garbage collector pause time in vault instance {{$labels.instance}} lasts more than 2 seconds/minute"
+          value: "{{ $value }}"

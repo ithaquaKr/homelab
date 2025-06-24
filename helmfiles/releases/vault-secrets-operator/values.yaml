@@ -1,0 +1,70 @@
+controller:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+  kubeRbacProxy:
+    image:
+      repository: kubebuilder/kube-rbac-proxy
+      tag: v0.15.0
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 500m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  manager:
+    image:
+      repository: hashicorp/vault-secrets-operator
+      tag: 0.7.0
+      pullPolicy: IfNotPresent
+    logging:
+      level: info
+    globalTransformationOptions:
+      excludeRaw: false
+    globalVaultAuthOptions:
+      allowDefaultGlobals: false
+    clientCache:
+      storageEncryption:
+        enabled: false
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+metricsService:
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+  type: ClusterIP
+
+defaultVaultConnection:
+  enabled: true
+  address: "http://vault.vault:8200"
+  skipTLSVerify: false
+
+telemetry:
+  serviceMonitor:
+    enabled: true
+    selectors:
+      monitor/name: vault-secrets-operator
+
+hooks:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  upgradeCRDs:
+    enabled: false
+
+tests:
+  enabled: false

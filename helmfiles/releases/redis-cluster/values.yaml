@@ -1,0 +1,231 @@
+image:
+  repository: bitnami/redis-cluster
+  tag: 6.2.7-debian-10-r23
+  pullPolicy: IfNotPresent
+
+networkPolicy:
+  enabled: false
+
+serviceAccount:
+  create: false
+
+pdb:
+  create: false
+
+usePassword: false
+
+persistence:
+  enabled: true
+  storageClass: "cinder-csi"
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi
+
+redis:
+  defaultConfigOverride: |
+    port 6379
+    bind 0.0.0.0
+    protected-mode yes
+    cluster-enabled yes
+    cluster-config-file /bitnami/redis/data/nodes.conf
+    cluster-node-timeout 60000
+    appendonly yes
+    appendfsync no
+    logfile ""
+    dir "/bitnami/redis/data"
+    pidfile "/opt/bitnami/redis/tmp/redis.pid"
+    loglevel notice
+  resources:
+    requests:
+      cpu: 2
+      memory: 512Mi
+
+updateJob:
+  resources:
+    limits:
+      cpu: 0.5
+      memory: 512Mi
+
+cluster:
+  init: true
+  nodes: 6
+  replicas: 1
+
+metrics:
+  enabled: true
+  image:
+    repository: bitnami/redis-exporter
+    tag: 1.61.0-debian-12-r2
+  resources:
+    limits:
+      cpu: 0.5
+      memory: 512Mi
+  serviceMonitor:
+    enabled: true
+    labels:
+      monitor/name: redis-cluster
+    interval: 60s
+    scrapeTimeout: 60s
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      monitor/name: redis-cluster
+    rules:
+      - alert: redis_cluster_node_down
+        expr: floor(avg_over_time(redis_up{job="redis-cluster"}[5m])) < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Cluster node down"
+          description: "Redis instance {{`{{ $labels.instance }}`}} is down for about 15 minutes."
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_missing_backup
+        expr: (time() - redis_rdb_last_save_timestamp_seconds{job="redis-cluster"} > 60 * 60 * 24) and redis_aof_enabled{job="redis-cluster"} == 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis Cluster missing backup"
+          description: Node has not been backed-up to disk for over 24h, VALUE = {{`{{ humanize $value }}`}}/60/60 hours
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_high_client_usage
+        expr: redis_connected_clients{job="redis-cluster"}/redis_config_maxclients{job="redis-cluster"} > 0.95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Cluster high number of connections"
+          description: "Redis instance has too many connections\n  VALUE = {{`{{ $value }}`}}\n  LABELS = {{`{{ $labels }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_small_connected_client
+        expr: avg_over_time(redis_connected_clients{job="redis-cluster"}[15m]) < 1
+        for: 60m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis Cluster low number of connections"
+          description: "Redis instance {{`{{ $labels.instance }}`}} has too low number of connected clients, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_rejected_client
+        expr: avg_over_time(rate(redis_rejected_connections_total{job="redis-cluster"}[6m])[30m:6m]) > 0
+        for: 60m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis Cluster has rejected some clients"
+          description: "Redis instance {{`{{ $labels.instance }}`}} has rejected some clients, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_lag_slave
+        expr: redis_latest_fork_usec{job="redis-cluster"}/1000000 > 5
+        for: 5m
+        labels:
+          severity: minor
+        annotations:
+          summary: "Redis Cluster lagged slave"
+          description: "Redis instance {{`{{ $labels.instance }}`}} has a lag slave, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_shard_failed
+        expr: redis_cluster_slots_fail{job="redis-cluster"} > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis cluster is failed, missing a shard. (instance {{`{{ $labels.instance }}`}})"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_memory_fragmentation
+        expr: redis_memory_used_rss_bytes{job="redis-cluster"}/redis_memory_used_bytes{job="redis-cluster"} > 1.5 and (redis_memory_used_rss_bytes{job="redis-cluster"}-redis_memory_used_bytes{job="redis-cluster"}) > 5368709120
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis Cluster memory fragmentation"
+          description: "Redis fragmentation rate is high. RAM resources is wasted without being reclaimed (at least 5G waste), VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_high_fork_time
+        expr: redis_latest_fork_usec{job="redis-cluster"}/1000000 > 5
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis Cluster high fork time"
+          description: "Time to fork child process is too high, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_high_cpu_usage
+        expr: ((delta(redis_used_cpu_sys{job="redis-cluster"}[6m])+delta(redis_used_cpu_user{job="redis-cluster"}[6m]))/120)*100 >= 95
+        for: 9m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Cluster high CPU usage"
+          description: "CPU usage is too high,VALUE: {{`{{ humanize $value }}`}}%"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_high_cpu_usage
+        expr: 80 <= ((delta(redis_used_cpu_sys{job="redis-cluster"}[6m])+delta(redis_used_cpu_user{job="redis-cluster"}[6m]))/120)*100 < 95
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis Cluster high CPU usage"
+          description: "CPU usage is high, service may be affected,VALUE: {{`{{ humanize $value }}`}}%"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_master_link_down
+        expr: redis_master_link_up{job="redis-cluster"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Cluster slave disconnected from master"
+          description: "A slave node has been disconnected from master for over 15 minutes. Please check the connection between slave and master."
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_abnormal_processed_commands_increase
+        expr: (redis_processed_commands_rate15m{job="redis-cluster"} - redis_processed_commands_rate15m_avg_over_time_1w{job="redis-cluster"})/redis_processed_commands_rate15m_stddev_over_time_1w{job="redis-cluster"} > 10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis Cluster abnormal processed commands increase"
+          description: Instance {{`{{$labels.addr}}`}} has an abnormal increase of processed commands. The current value of processed commands has been increased {{`{{ with printf "redis_processed_commands_abnormal_increase{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_processed_commands_rate15m_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_abnormal_processed_commands_reduce
+        expr: (redis_processed_commands_rate15m{job="redis-cluster"} - redis_processed_commands_rate15m_avg_over_time_1w{job="redis-cluster"})/redis_processed_commands_rate15m_stddev_over_time_1w{job="redis-cluster"} < -10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis Cluster abnormal processed commands reduction"
+          description: Instance {{`{{$labels.addr}}`}} is unexpected lower number of processed commands. The current value of processed commands has been reduced {{`{{ with printf "redis_processed_commands_abnormal_reduce{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_processed_commands_rate15m_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_abnormal_client_increase
+        expr: (redis_connected_clients{job="redis-cluster"} - redis_connected_clients_avg_over_time_1w{job="redis-cluster"})/redis_connected_clients_stddev_over_time_1w{job="redis-cluster"} > 10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis Cluster abnormal client increase"
+          description: Instance {{`{{$labels.addr}}`}} has an abnormal increase of connected clients. The current value of connected clients has been increased {{`{{ with printf "redis_connected_clients_abnormal_increase{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_connected_clients_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_cluster_abnormal_client_reduce
+        expr: (redis_connected_clients{job="redis-cluster"} - redis_connected_clients_avg_over_time_1w{job="redis-cluster"})/redis_connected_clients_stddev_over_time_1w{job="redis-cluster"} < -10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis Cluster abnormal client reduction"
+          description: Instance {{`{{$labels.addr}}`}} is unexpected lower number of connected clients. The current value of connected clients has been reduced {{`{{ with printf "redis_connected_clients_abnormal_reduce{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_connected_clients_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"

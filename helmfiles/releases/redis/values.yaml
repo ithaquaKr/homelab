@@ -1,0 +1,268 @@
+image:
+  repository: bitnami/redis
+  tag: 6.2.7-debian-10-r23
+  pullPolicy: IfNotPresent
+
+architecture: replication
+
+auth:
+  enabled: false
+
+commonConfiguration: |-
+  save ""
+  supervised no
+  loglevel notice
+  always-show-logo yes
+  appendonly yes
+  appendfsync no
+
+master:
+  count: 1
+  startupProbe:
+    enabled: true
+  resources:
+    requests:
+      cpu: 3
+      memory: 512Mi
+  persistence:
+    enabled: true
+    storageClass: "cinder-csi"
+    size: 10Gi
+  serviceAccount:
+    create: false
+  pdb:
+    create: false
+
+replica:
+  replicaCount: 3
+  configuration: |-
+    pidfile "/opt/bitnami/redis/tmp/redis.pid"
+  resources:
+    requests:
+      cpu: 2
+      memory: 512Mi
+  persistence:
+    enabled: true
+    storageClass: "cinder-csi"
+    size: 10Gi
+  serviceAccount:
+    create: false
+  pdb:
+    create: false
+  extraVolumeMounts:
+    - name: empty-dir
+      mountPath: /opt/bitnami/redis/tmp
+      subPath: app-tmp-dir
+
+sentinel:
+  enabled: true
+  configuration: |-
+    pidfile "/opt/bitnami/redis-sentinel/tmp/sentinel.pid"
+  image:
+    repository: bitnami/redis-sentinel
+    tag: 6.2.7-debian-10-r23
+  masterSet: mymaster
+  quorum: 2
+  resources:
+    requests:
+      cpu: 2
+      memory: 512Mi
+  persistence:
+    enabled: true
+    storageClass: "cinder-csi"
+    size: 5Gi
+  extraVolumeMounts:
+    - name: empty-dir
+      mountPath: /opt/bitnami/redis-sentinel/tmp
+      subPath: app-sentinel-tmp-dir
+
+networkPolicy:
+  enabled: false
+
+serviceAccount:
+  create: false
+
+metrics:
+  enabled: true
+  image:
+    repository: bitnami/redis-exporter
+    tag: 1.61.0-debian-12-r2
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 0.5
+      memory: 512Mi
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      monitor/name: redis-sentinel
+    interval: 60s
+    scrapeTimeout: 60s
+  podMonitor:
+    enabled: true
+    interval: 60s
+    scrapeTimeout: 60s
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      monitor/name: redis-sentinel
+    rules:
+      - alert: redis_node_down
+        expr: floor(avg_over_time(redis_up{job=~"redis-sen-metrics"}[15m])) < 1
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis node down"
+          description: "Redis instance {{`{{ $labels.instance }}`}} is down for about 15 minutes."
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_missing_backup
+        expr: (time() - redis_rdb_last_save_timestamp_seconds{job=~"redis-sen-metrics"} > 60 * 60 * 24) and redis_aof_enabled{job=~"redis-sen-metrics"} == 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis missing backup"
+          description: Node has not been backed-up to disk for over 24h, VALUE = {{`{{ humanize $value }}`}}/60/60 hours
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_high_client_usage
+        expr: redis_connected_clients{job=~"redis-sen-metrics"}/redis_config_maxclients{job=~"redis-sen-metrics"} > 0.95
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis high number of connections"
+          description: "Redis instance {{`{{ $labels.instance }}`}} has too many clients and is reaching client limit, VALUE: {{`{{ humanize $value }}`}}%"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_small_connected_client
+        expr: avg_over_time(redis_connected_clients{job=~"redis-sen-metrics"}[15m]) < 1
+        for: 60m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis low number of connections"
+          description: "Redis instance {{`{{ $labels.instance }}`}} has too low number of connected clients, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_rejected_client
+        expr: avg_over_time(rate(redis_rejected_connections_total[6m])[30m:6m]) > 0
+        for: 60m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis has rejected some clients"
+          description: "Redis instance {{`{{ $labels.instance }}`}} has rejected some clients, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_memory_fragmentation
+        expr: redis_memory_used_rss_bytes{job=~"redis-sen-metrics"}/redis_memory_used_bytes{job=~"redis-sen-metrics"} > 1.5 and (redis_memory_used_rss_bytes{job=~"redis-sen-metrics"}-redis_memory_used_bytes{job=~"redis-sen-metrics"}) > 5368709120
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis memory fragmentation"
+          description: "Redis fragmentation rate is high. RAM resources is wasted without being reclaimed (at least 5G waste), VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_high_fork_time
+        expr: redis_latest_fork_usec{job=~"redis-sen-metrics"}/1000000 > 5
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis high fork time"
+          description: "Time to fork child process is too high, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_lag_slave
+        expr: redis_latest_fork_usec{job=~"redis-sen-metrics"}/1000000 > 5
+        for: 5m
+        labels:
+          severity: minor
+        annotations:
+          summary: "Redis lagged slave"
+          description: "Redis instance {{`{{ $labels.instance }}`}} has a lag slave, VALUE: {{`{{ humanize $value }}`}}"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_high_cpu_usage
+        expr: ((delta(redis_used_cpu_sys{job=~"redis-sen-metrics"}[6m])+delta(redis_used_cpu_user{job=~"redis-sen-metrics"}[6m]))/120)*100 >= 95
+        for: 9m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis high CPU usage"
+          description: "CPU usage is too high,VALUE: {{`{{ humanize $value }}`}}%"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_high_cpu_usage
+        expr: 80 <= ((delta(redis_used_cpu_sys{job=~"redis-sen-metrics"}[6m])+delta(redis_used_cpu_user{job=~"redis-sen-metrics"}[6m]))/120)*100 < 95
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis high CPU usage"
+          description: "CPU usage is high, service may be affected,VALUE: {{`{{ humanize $value }}`}}%"
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_splited_brain
+        expr: sum(increase(redis_instance_info{role="master",job=~"redis-sen-metrics"}[7d])) by (application,owner,cmdline,instance,modulecode,group,subsystem) > 1
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis in split brain situation"
+          description: "Redis instances {{`{{ $labels.instance }}`}} are in split brain situation. It is a dangerous situation. "
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_master_link_down
+        expr: redis_master_link_up{job=~"redis-sen-metrics"} == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis slave disconnected from master"
+          description: "A slave node has been disconnected from master for over 15 minutes. Please check the connection between slave and master."
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_abnormal_processed_commands_increase
+        expr: (redis_processed_commands_rate15m{job=~"redis-sen-metrics"} - redis_processed_commands_rate15m_avg_over_time_1w{job=~"redis-sen-metrics"})/redis_processed_commands_rate15m_stddev_over_time_1w{job=~"redis-sen-metrics"} > 10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis abnormal processed commands increase"
+          description: Instance {{`{{$labels.addr}}`}} has an abnormal increase of processed commands. The current value of processed commands has been increased {{`{{ with printf "redis_processed_commands_abnormal_increase{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_processed_commands_rate15m_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_abnormal_processed_commands_reduce
+        expr: (redis_processed_commands_rate15m{job=~"redis-sen-metrics"} - redis_processed_commands_rate15m_avg_over_time_1w{job=~"redis-sen-metrics"})/redis_processed_commands_rate15m_stddev_over_time_1w{job=~"redis-sen-metrics"} < -10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis abnormal processed commands reduction"
+          description: Instance {{`{{$labels.addr}}`}} is unexpected lower number of processed commands. The current value of processed commands has been reduced {{`{{ with printf "redis_processed_commands_abnormal_reduce{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_processed_commands_rate15m_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_abnormal_client_increase
+        expr: (redis_connected_clients{job=~"redis-sen-metrics"} - redis_connected_clients_avg_over_time_1w{job=~"redis-sen-metrics"})/redis_connected_clients_stddev_over_time_1w{job=~"redis-sen-metrics"} > 10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis abnormal client increase"
+          description: Instance {{`{{$labels.addr}}`}} has an abnormal increase of connected clients. The current value of connected clients has been increased {{`{{ with printf "redis_connected_clients_abnormal_increase{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_connected_clients_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"
+
+      - alert: redis_abnormal_client_reduce
+        expr: (redis_connected_clients{job=~"redis-sen-metrics"} - redis_connected_clients_avg_over_time_1w{job=~"redis-sen-metrics"})/redis_connected_clients_stddev_over_time_1w{job=~"redis-sen-metrics"} < -10
+        for: 15m
+        labels:
+          severity: major
+        annotations:
+          summary: "Redis abnormal client reduction"
+          description: Instance {{`{{$labels.addr}}`}} is unexpected lower number of connected clients. The current value of connected clients has been reduced {{`{{ with printf "redis_connected_clients_abnormal_reduce{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}, compared to the average value of the previous week (the value is {{`{{ with printf "redis_connected_clients_avg_over_time_1w{job='%s',instance='%s'}" $labels.job $labels.instance | query }}{{ . | first | value | humanize }}{{ end }}`}}).
+          value: "{{`{{ $value }}`}}"
