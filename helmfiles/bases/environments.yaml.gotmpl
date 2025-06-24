@@ -1,0 +1,12 @@
+---
+{{ $envValueDir := print (regexReplaceAll "/releases/[^/]+$" (env "PWD") "") "/environments" }}
+
+environments:
+  ithalab:
+    kubeContext: kind-ithalab-cluster-2
+    values:
+      - "{{ $envValueDir }}/ithalab.yaml"
+  local:
+    kubeContext: kind-kind
+    values:
+      - "{{ $envValueDir }}/local.yaml"
