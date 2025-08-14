@@ -183,6 +183,12 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
     version   = "latest"
   }
 
+  # Custom data to set up SSH key forwarding and configure the jumpbox
+  custom_data = base64encode(templatefile("${path.module}/ssh-init.sh", {
+    admin_username = var.admin_username
+    private_key    = file(replace(var.ssh_public_key_path, ".pub", ""))
+  }))
+
   tags = {
     Environment = var.environment
     Project     = var.project
@@ -217,11 +223,6 @@ resource "azurerm_linux_virtual_machine" "linux_vm" {
   resource_group_name = azurerm_resource_group.main.name
   size                = var.vm_size
   admin_username      = var.admin_username
-  priority            = "Spot"
-  eviction_policy     = "Deallocate"
-
-  # Spot instance configuration
-  max_bid_price = -1 # Pay up to the on-demand price
 
   disable_password_authentication = true
 
