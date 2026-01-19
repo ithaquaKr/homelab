@@ -1,0 +1,19 @@
+# SSL certificates (sensitive)
+certs/*.key
+certs/*.crt
+certs/*.pem
+certs/*.csr
+certs/*.cnf
+
+# Keep certs directory
+!certs/.gitkeep
+
+# Environment file
+.env
+
+# Logs
+*.log
+
+# HTML content (except .well-known for ACME)
+html/*
+!html/.well-known/
