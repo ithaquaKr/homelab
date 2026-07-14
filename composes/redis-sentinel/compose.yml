@@ -1,85 +1,117 @@
-version: "3.8"
-
 x-redis-common: &redis-common
   image: ${REDIS_IMAGE}
+  command: /run.sh --appendonly yes --save "" --appendfsync no
   networks:
     - redis-net
-  env_file: .env
 
 x-sentinel-common: &sentinel-common
   image: ${SENTINEL_IMAGE}
   networks:
     - redis-net
-  env_file: .env
+  depends_on:
+    redis-1:
+      condition: service_healthy
 
 services:
-  redis-master:
+  # Initialize as Redis Master
+  redis-1:
     <<: *redis-common
-    container_name: redis-master
-    command: /run.sh
+    container_name: redis-1
     volumes:
-      - ./config/redis/master.conf:/opt/bitnami/redis/mountd-etc/redis.conf
-      - redis-master-data:/bitnami/redis/data
-      - redis-master-log:/opt/bitnami/redis/logs
+      - ./data/redis-1/:/bitnami/redis/data
+      - ./logs/redis-1/:/opt/bitnami/redis/logs
     ports:
-      - "${REDIS_PORT}:${REDIS_PORT}"
+      - "6380:6380"
     environment:
-      - ALLOW_EMPTY_PASSWORD=yes # TODO: Remove this, add authentication for production environment
-      - REDIS_PORT=${REDIS_PORT}
+      REDIS_PORT_NUMBER: 6380
+      ALLOW_EMPTY_PASSWORD: yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-p", "6380", "ping"]
       interval: 5s
       timeout: 3s
       retries: 3
 
-  redis-replica:
+  # Initialize as Redis replica
+  redis-2:
     <<: *redis-common
+    container_name: redis-2
     volumes:
-      - ./config/redis/replica.conf:/opt/bitnami/redis/mountd-etc/redis.conf
-      - redis-replica-data:/data
-      - redis-replica-log:/opt/bitnami/redis/logs
-    command: /run.sh
-    depends_on:
-      redis-master:
-        condition: service_healthy
-    deploy:
-      replicas: ${REDIS_REPLICA_COUNT}
+      - ./data/redis-2/:/bitnami/redis/data
+      - ./logs/redis-2/:/opt/bitnami/redis/logs
     ports:
-      - "${REDIS_REPLICA_START_PORT}-${REDIS_REPLICA_END_PORT}:${REDIS_PORT}"
+      - "6381:6381"
     environment:
-      - ALLOW_EMPTY_PASSWORD=yes # TODO: Remove this, add authentication for production environment
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_MASTER_HOST=${REDIS_MASTER_HOST}
-      - REDIS_MASTER_PORT=${REDIS_PORT}
+      ALLOW_EMPTY_PASSWORD: yes
+      REDIS_PORT_NUMBER: 6381
+      REDIS_MASTER_HOST: redis-1
+      REDIS_MASTER_PORT_NUMBER: 6380
+    depends_on:
+      redis-1:
+        condition: service_healthy
 
-  sentinel:
-    <<: *sentinel-common
+  # Initialize as Redis replica
+  redis-3:
+    <<: *redis-common
+    container_name: redis-3
     volumes:
-      - ./config/sentinel/sentinel.conf:/bitnami/redis-sentinel/sentinel.conf
-      - sentinel-log:/opt/bitnami/redis-sentinel/logs
-    environment:
-      - SENTINEL_PORT=${SENTINEL_PORT}
-      - SENTINEL_QUORUM=${SENTINEL_QUORUM}
-      - REDIS_MASTER_HOST=${REDIS_MASTER_HOST}
-      - REDIS_MASTER_PORT=${REDIS_PORT}
-      - SENTINEL_DOWN_AFTER=${SENTINEL_DOWN_AFTER}
-      - SENTINEL_FAILOVER_TIMEOUT=${SENTINEL_FAILOVER_TIMEOUT}
-      - SENTINEL_PARALLEL_SYNCS=${SENTINEL_PARALLEL_SYNCS}
-    deploy:
-      replicas: ${SENTINEL_COUNT}
+      - ./data/redis-3/:/bitnami/redis/data
+      - ./logs/redis-3/:/opt/bitnami/redis/logs
     ports:
-      - "${SENTINEL_START_PORT}-${SENTINEL_END_PORT}:${SENTINEL_PORT}"
+      - "6382:6382"
+    environment:
+      ALLOW_EMPTY_PASSWORD: yes
+      REDIS_PORT_NUMBER: 6382
+      REDIS_MASTER_HOST: redis-1
+      REDIS_MASTER_PORT_NUMBER: 6380
     depends_on:
-      redis-master:
+      redis-1:
         condition: service_healthy
+
+  sentinel-1:
+    <<: *sentinel-common
+    container_name: redis-sentinel-1
+    volumes:
+      - ./logs/sentinel-1/:/opt/bitnami/redis-sentinel/logs
+    environment:
+      REDIS_SENTINEL_PORT_NUMBER: 26380
+      REDIS_SENTINEL_QUORUM: 2
+      REDIS_MASTER_HOST: redis-1
+      REDIS_MASTER_PORT_NUMBER: 6380
+      REDIS_MASTER_SET: mymaster
+      ALLOW_EMPTY_PASSWORD: yes
+    ports:
+      - "26380:26380"
+
+  sentinel-2:
+    <<: *sentinel-common
+    container_name: redis-sentinel-2
+    volumes:
+      - ./logs/sentinel-2/:/opt/bitnami/redis-sentinel/logs
+    environment:
+      REDIS_SENTINEL_PORT_NUMBER: 26381
+      REDIS_SENTINEL_QUORUM: 2
+      REDIS_MASTER_HOST: redis-1
+      REDIS_MASTER_PORT_NUMBER: 6380
+      REDIS_MASTER_SET: mymaster
+      ALLOW_EMPTY_PASSWORD: yes
+    ports:
+      - "26381:26381"
+
+  sentinel-3:
+    <<: *sentinel-common
+    container_name: redis-sentinel-3
+    volumes:
+      - ./logs/sentinel-3/:/opt/bitnami/redis-sentinel/logs
+    environment:
+      REDIS_SENTINEL_PORT_NUMBER: 26382
+      REDIS_SENTINEL_QUORUM: 2
+      REDIS_MASTER_HOST: redis-1
+      REDIS_MASTER_PORT_NUMBER: 6380
+      REDIS_MASTER_SET: mymaster
+      ALLOW_EMPTY_PASSWORD: yes
+    ports:
+      - "26382:26382"
 
 networks:
   redis-net:
     driver: bridge
-
-volumes:
-  redis-master-data:
-  redis-master-log:
-  redis-replica-data:
-  redis-replica-log:
-  sentinel-log:
